@@ -3059,6 +3059,20 @@ status_t AudioFlinger::closeOutput_nonvirtual(audio_io_handle_t output)
 
 
             mPlaybackThreads.removeItem(output);
+            // Save AUDIO_SESSION_OUTPUT_MIX effect to chain orphans
+            // Output Mix Effect session is used to manage Music Effect by AudioPolicy Manager.
+            // It exists across all playback threads.
+            if (playbackThread->type() == IAfThreadBase::MIXER) {
+                const uint32_t sessionType =
+                        playbackThread->hasAudioSession(AUDIO_SESSION_OUTPUT_MIX);
+                if ((sessionType & IAfThreadBase::EFFECT_SESSION) != 0) {
+                    audio_utils::lock_guard _sl(playbackThread->mutex());
+                    auto mixChain = playbackThread->getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX);
+                    ALOGW("%s() output %d moving mix session to orphans", __func__, output);
+                    playbackThread->removeEffectChain_l(mixChain);
+                    putOrphanEffectChain_l(mixChain);
+                }
+            }
             // save all effects to the default thread
             if (mPlaybackThreads.size()) {
                 IAfPlaybackThread* const dstThread =
@@ -4203,7 +4217,8 @@ status_t AudioFlinger::createEffect(const media::CreateEffectRequest& request,
             // before creating the AudioEffect or the io handle must be specified.
             //
             // Detect if the effect is created after an AudioRecord is destroyed.
-            if (getOrphanEffectChain_l(sessionId).get() != nullptr) {
+            if ((sessionId != AUDIO_SESSION_OUTPUT_MIX) &&
+                    getOrphanEffectChain_l(sessionId).get() != nullptr) {
                 ALOGE("%s: effect %s with no specified io handle is denied because the AudioRecord"
                       " for session %d no longer exists",
                       __func__, descOut.name, sessionId);
@@ -4259,7 +4274,8 @@ status_t AudioFlinger::createEffect(const media::CreateEffectRequest& request,
                     goto Exit;
                 }
             }
-        } else {
+        }
+        if (thread->type() == IAfThreadBase::RECORD || sessionId == AUDIO_SESSION_OUTPUT_MIX) {
             // Check if one effect chain was awaiting for an effect to be created on this
             // session and used it instead of creating a new one.
             sp<IAfEffectChain> chain = getOrphanEffectChain_l(sessionId);
@@ -4363,8 +4379,22 @@ NO_THREAD_SAFETY_ANALYSIS
         }
         return ret;
     }
-    IAfPlaybackThread* const srcThread = checkPlaybackThread_l(srcIo);
-    if (srcThread == nullptr) {
+    IAfPlaybackThread* srcThread = checkPlaybackThread_l(srcIo);
+    const bool foundOrphanForSessionId = (mOrphanEffectChains.indexOfKey(sessionId) >= 0);
+    if (srcThread == nullptr && !foundOrphanForSessionId && sessionId == AUDIO_SESSION_OUTPUT_MIX) {
+        ALOGW("%s() session %d not found in orphans, checking other mix", __func__, sessionId);
+        for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+            sp<IAfPlaybackThread> pt = mPlaybackThreads.valueAt(i);
+            const uint32_t sessionType = pt->hasAudioSession(sessionId);
+            if ((pt->type() == IAfThreadBase::MIXER) &&
+                    ((sessionType & IAfThreadBase::EFFECT_SESSION) != 0)) {
+                srcThread = pt.get();
+                ALOGW("%s() found srcOutput %d hosting session %d", __func__, pt->id(), sessionId);
+                break;
+            }
+        }
+    }
+    if (srcThread == nullptr && !foundOrphanForSessionId) {
         ALOGW("%s() bad srcIo %d", __func__, srcIo);
         return BAD_VALUE;
     }
@@ -4374,7 +4404,13 @@ NO_THREAD_SAFETY_ANALYSIS
         return BAD_VALUE;
     }
 
-    audio_utils::scoped_lock _ll(dstThread->mutex(), srcThread->mutex());
+    audio_utils::lock_guard _dl(dstThread->mutex());
+    if (foundOrphanForSessionId) {
+        ALOGW("moveEffects() found session %d in orphan chains", sessionId);
+        sp<IAfEffectChain> chain = getOrphanEffectChain_l(sessionId);
+        return dstThread->addEffectChain_l(chain);
+    }
+    audio_utils::lock_guard _sl(srcThread->mutex());
     return moveEffectChain_ll(sessionId, srcThread, dstThread);
 }
 
