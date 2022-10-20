@@ -2233,10 +2233,11 @@ void EffectChain::clearInputBuffer_l()
     if (mInBuffer == NULL) {
         return;
     }
-    const size_t frameSize = audio_bytes_per_sample(AUDIO_FORMAT_PCM_FLOAT)
-            * mEffectCallback->inChannelCount(mEffects[0]->id());
 
-    memset(mInBuffer->audioBuffer()->raw, 0, mEffectCallback->frameCount() * frameSize);
+    // We clear entire buffer instead of actual data size to avoid reading stale data
+    // on spatializer effect chain when the last spatialized track is removed.
+    // memset(mInBuffer->audioBuffer()->raw, 0, mEffectCallback->frameCount() * frameSize);
+    memset(mInBuffer->audioBuffer()->raw, 0, mInBuffer->getSize());
     mInBuffer->commit();
 }
 
