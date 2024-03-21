@@ -4473,6 +4473,10 @@ sp<IAfEffectHandle> AudioFlinger::createOrphanEffect_l(
                 chain->createEffect(effect, desc, effectId, sessionId, pinned);
         if (llStatus != NO_ERROR) {
             *status = llStatus;
+            // if the effect chain was not created here, put it back
+            if (!chainCreated) {
+                putOrphanEffectChain_l(chain);
+            }
             return nullptr;
         }
         effect->setMode(getMode());
@@ -4497,17 +4501,20 @@ sp<IAfEffectHandle> AudioFlinger::createOrphanEffect_l(
     if (lStatus == OK) {
         lStatus = effect->addHandle(handle.get());
     }
+    // in case of lStatus error, EffectHandle will still return and caller should do the clear
     if (lStatus != NO_ERROR && lStatus != ALREADY_EXISTS) {
         if (effectCreated) {
             chain->removeEffect(effect);
+        }
+        // if the effect chain was not created here, put it back
+        if (!chainCreated) {
+            putOrphanEffectChain_l(chain);
         }
     } else {
         if (enabled != NULL) {
             *enabled = (int)effect->isEnabled();
         }
-        if (chainCreated) {
-            putOrphanEffectChain_l(chain);
-        }
+        putOrphanEffectChain_l(chain);
     }
     *status = lStatus;
     return handle;
