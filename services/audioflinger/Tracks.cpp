@@ -389,6 +389,7 @@ TrackHandle::TrackHandle(const sp<IAfTrack>& track)
       mTrack(track)
 {
     setMinSchedulerPolicy(SCHED_NORMAL, ANDROID_PRIORITY_AUDIO);
+    setInheritRt(true);
 }
 
 TrackHandle::~TrackHandle() {
@@ -2662,6 +2663,7 @@ RecordHandle::RecordHandle(
     mRecordTrack(recordTrack)
 {
     setMinSchedulerPolicy(SCHED_NORMAL, ANDROID_PRIORITY_AUDIO);
+    setInheritRt(true);
 }
 
 RecordHandle::~RecordHandle() {
