@@ -616,10 +616,11 @@ EffectModule::~EffectModule()
 
 }
 
+// return true if any effect started or stopped
 bool EffectModule::updateState_l() {
     audio_utils::lock_guard _l(mutex());
 
-    bool started = false;
+    bool startedOrStopped = false;
     switch (mState) {
     case RESTART:
         reset_l();
@@ -634,7 +635,7 @@ bool EffectModule::updateState_l() {
         }
         if (start_ll() == NO_ERROR) {
             mState = ACTIVE;
-            started = true;
+            startedOrStopped = true;
         } else {
             mState = IDLE;
         }
@@ -654,6 +655,7 @@ bool EffectModule::updateState_l() {
         // turn off sequence.
         if (--mDisableWaitCnt == 0) {
             reset_l();
+            startedOrStopped = true;
             mState = IDLE;
         }
         break;
@@ -668,7 +670,7 @@ bool EffectModule::updateState_l() {
         break;
     }
 
-    return started;
+    return startedOrStopped;
 }
 
 void EffectModule::process()
@@ -2289,6 +2291,9 @@ void EffectChain::process_l() {
     }
     bool doResetVolume = false;
     for (size_t i = 0; i < size; i++) {
+        // reset volume when any effect just started or stopped.
+        // resetVolume_l will check if the volume controller effect in the chain needs update and
+        // apply the correct volume
         doResetVolume = mEffects[i]->updateState_l() || doResetVolume;
     }
     if (doResetVolume) {
@@ -2628,6 +2633,9 @@ bool EffectChain::setVolume_l(uint32_t* left, uint32_t* right, bool force) {
         mEffects[ctrlIdx]->setVolume(&newLeft, &newRight, true);
         mNewLeftVolume = newLeft;
         mNewRightVolume = newRight;
+        ALOGD("%s sessionId %d volume controller effect %s set (%d, %d), ret (%d, %d)", __func__,
+              mSessionId, mEffects[ctrlIdx]->desc().name, mLeftVolume, mRightVolume, newLeft,
+              newRight);
     }
     // then indicate volume to all other effects in chain.
     // Pass altered volume to effects before volume controller
