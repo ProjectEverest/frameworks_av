@@ -1597,7 +1597,7 @@ std::string CameraService::toString(std::set<userid_t> intSet) {
             s << ", " << std::to_string(i);
         }
     }
-    return std::move(s.str());
+    return s.str();
 }
 
 int32_t CameraService::mapToInterface(TorchModeStatus status) {
@@ -5189,7 +5189,7 @@ std::string CameraService::CameraClientManager::toString() const {
     }
     if (hasAny) ret << "\n";
     ret << "]\n";
-    return std::move(ret.str());
+    return ret.str();
 }
 
 CameraService::DescriptorPtr CameraService::CameraClientManager::makeClientDescriptor(

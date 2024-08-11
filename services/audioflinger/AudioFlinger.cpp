@@ -4485,7 +4485,7 @@ sp<IAfEffectHandle> AudioFlinger::createOrphanEffect_l(
             // TODO(b/184194057): Use the vibrator information from the vibrator that will be used
             // for the HapticGenerator.
             const std::optional<media::AudioVibratorInfo> defaultVibratorInfo =
-                    std::move(getDefaultVibratorInfo_l());
+                    getDefaultVibratorInfo_l();
             if (defaultVibratorInfo) {
                 // Only set the vibrator info when it is a valid one.
                 audio_utils::lock_guard _cl(chain->mutex());
