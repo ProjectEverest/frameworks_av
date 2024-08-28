@@ -1296,7 +1296,7 @@ status_t AudioTrack::setPlaybackRate(const AudioPlaybackRate &playbackRate)
     if (isAudioPlaybackRateEqual(playbackRate, mPlaybackRate)) {
         return NO_ERROR;
     }
-    if (isOffloadedOrDirect_l()) {
+    if (isAfTrackOffloadedOrDirect_l()) {
         const status_t status = statusTFromBinderStatus(mAudioTrack->setPlaybackRateParameters(
                 VALUE_OR_RETURN_STATUS(
                         legacy2aidl_audio_playback_rate_t_AudioPlaybackRate(playbackRate))));
